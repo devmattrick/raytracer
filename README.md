@@ -1,4 +1,5 @@
 # ray-tracer
+![Example of raytracer output](sample.png)
 A simple ray tracer written in Rust following
 [this tutorial](https://raytracing.github.io/books/RayTracingInOneWeekend.html).
 
