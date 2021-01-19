@@ -7,55 +7,44 @@ mod ray;
 mod vec3;
 
 use camera::Camera;
+use chrono::{DateTime, Utc};
 use color::as_ppm;
 use hittable::{Hittable, HittableVec, Sphere};
-use material::{LambertianMaterial, MetalMaterial};
+use material::{DielectricMaterial, LambertianMaterial, Material, MetalMaterial};
 use math::rand_double;
 use ray::Ray;
-use std::rc::Rc;
-use vec3::{Color, Point3, Vec3};
+use std::{rc::Rc};
+use vec3::{Color, Point3};
 
 const INFINITY: f64 = f64::MAX;
 
 // Image constants
-const ASPECT_RATIO: f64 = 16.0 / 9.0;
-const IMAGE_WIDTH: u32 = 400;
+const ASPECT_RATIO: f64 = 3.0 / 2.0;
+const IMAGE_WIDTH: u32 = 1200;
 const IMAGE_HEIGHT: u32 = (IMAGE_WIDTH as f64 / ASPECT_RATIO) as u32;
 
 const SAMPLES_PER_PIXEL: u32 = 100;
 
 fn main() {
-    let mut world = HittableVec::new();
+    let start: DateTime<Utc> = Utc::now();
+    eprintln!("Starting render at {}", start);
 
-    let mat_ground = LambertianMaterial::new(Color::new(0.8, 0.8, 0.0));
-    let mat_center = LambertianMaterial::new(Color::new(0.7, 0.3, 0.3));
-    let mat_left = MetalMaterial::new(Color::new(0.8, 0.8, 0.8), 0.3);
-    let mat_right = MetalMaterial::new(Color::new(0.8, 0.6, 0.2), 1.0);
+    let world: Box<dyn Hittable> = Box::from(random_scene());
 
-    world.add(Box::new(Sphere::new(
-        Point3::new(0.0, -100.5, -1.0),
-        100.0,
-        Rc::new(mat_ground),
-    )));
-    world.add(Box::new(Sphere::new(
-        Point3::new(0.0, 0.0, -1.0),
-        0.5,
-        Rc::new(mat_center),
-    )));
-    world.add(Box::new(Sphere::new(
-        Point3::new(-1.0, 0.0, -1.0),
-        0.5,
-        Rc::new(mat_left),
-    )));
-    world.add(Box::new(Sphere::new(
-        Point3::new(1.0, 0.0, -1.0),
-        0.5,
-        Rc::new(mat_right),
-    )));
-
-    let world: Box<dyn Hittable> = Box::from(world);
-
-    let cam = Camera::default();
+    let look_from = Point3::new(13.0, 2.0, 3.0);
+    let look_at = Point3::new(0.0, 0.0, 0.0);
+    let vup = Point3::new(0.0, 1.0, 0.0);
+    let focus_dist = 10.0;
+    let aperture = 0.1;
+    let cam = Camera::new(
+        look_from,
+        look_at,
+        vup,
+        20.0,
+        ASPECT_RATIO,
+        aperture,
+        focus_dist,
+    );
 
     println!("P3\n{} {}\n255", IMAGE_WIDTH, IMAGE_HEIGHT);
 
@@ -77,7 +66,67 @@ fn main() {
         }
     }
 
-    eprintln!("Done!");
+    let end: DateTime<Utc> = Utc::now();
+    let duration = end.signed_duration_since(start);
+    eprintln!("Finished render at {} in {}.", end, duration);
+}
+
+fn random_scene() -> HittableVec {
+    let mut world = HittableVec::new();
+
+    let mat_ground = LambertianMaterial::new(Color::new(1.0, 1.0, 1.0));
+    world.add(Box::new(Sphere::new(
+        Point3::new(0.0, -1000.0, -1.0),
+        1000.0,
+        Rc::new(mat_ground),
+    )));
+
+    for a in -11..11 {
+        for b in -11..11 {
+            let center = Point3::new(
+                a as f64 + 0.9 * rand_double(0.0, 1.0),
+                0.2,
+                b as f64 + 0.9 * rand_double(0.0, 1.0),
+            );
+
+            let rand_mat = rand_double(0.0, 1.0);
+            let mat: Rc<dyn Material> = if rand_mat < 0.8 {
+                let albedo = Color::rand(0.0, 1.0) * Color::rand(0.0, 1.0);
+                Rc::new(LambertianMaterial::new(albedo))
+            } else if rand_mat < 0.95 {
+                let albedo = Color::rand(0.5, 1.0);
+                let fuzz = rand_double(0.0, 0.5);
+                Rc::new(MetalMaterial::new(albedo, fuzz))
+            } else {
+                let refraction_index = rand_double(1.3, 2.7);
+                Rc::new(DielectricMaterial::new(refraction_index))
+            };
+
+            world.add(Box::new(Sphere::new(center, 0.2, mat)));
+        }
+    }
+
+    let mat_1 = Rc::new(DielectricMaterial::new(1.5));
+    let mat_2 = Rc::new(LambertianMaterial::new(Color::new(0.4, 0.2, 0.1)));
+    let mat_3 = Rc::new(MetalMaterial::new(Color::new(0.7, 0.6, 0.5), 0.0));
+
+    world.add(Box::new(Sphere::new(
+        Point3::new(0.0, 1.0, 0.0),
+        1.0,
+        mat_1,
+    )));
+    world.add(Box::new(Sphere::new(
+        Point3::new(-4.0, 1.0, 0.0),
+        1.0,
+        mat_2,
+    )));
+    world.add(Box::new(Sphere::new(
+        Point3::new(4.0, 1.0, 0.0),
+        1.0,
+        mat_3,
+    )));
+
+    world
 }
 
 const MAX_DEPTH: u32 = 50;

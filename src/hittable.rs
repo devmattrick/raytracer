@@ -38,10 +38,6 @@ impl HitRecord {
         self.material.clone()
     }
 
-    pub fn t(&self) -> f64 {
-        self.t
-    }
-
     pub fn front_face(&self) -> bool {
         self.front_face
     }
